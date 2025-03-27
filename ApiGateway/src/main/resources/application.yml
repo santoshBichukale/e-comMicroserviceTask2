@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: ApiGateway
+
+  cloud:
+    gateway:
+      routes:
+        - id: UserService
+          uri: lb://USERSERVICE
+          predicates:
+            - Path=/user/**
+        - id: productService
+          uri: lb://PRODUCTSERVICE
+          predicates:
+            - Path=/product/**
+        - id: orderService
+          uri: lb://ORDERSERVICE
+          predicates:
+            - Path=/order/**
+
+  eureka:
+    client:
+      register-with-eureka: true
+      fetch-registry: true
+      service-url:
+        defaultZone: http://localhost:8761/eureka
+
+server:
+  port: 9090
