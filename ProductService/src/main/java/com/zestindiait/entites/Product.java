@@ -22,4 +22,6 @@ public class Product {
     private int stockQuantity;
     private String category;
 
+
+
 }

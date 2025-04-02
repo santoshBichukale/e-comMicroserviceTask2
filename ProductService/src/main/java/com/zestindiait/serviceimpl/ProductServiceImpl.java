@@ -21,7 +21,7 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public Product saveProduct(Product product) {
 
-        if(productRepository.findByProductName(product.getProductName()).isPresent()){
+        if (productRepository.findByProductName(product.getProductName()).isPresent()) {
             throw new ProductAlreadyExistsException("Product already exists with name: " + product.getProductName());
         }
 
@@ -45,6 +45,12 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public void deleteProduct(String id) {
         productRepository.deleteById(id);
+    }
+
+    @Override
+    public Product updateProduct(Product product) {
+
+        return productRepository.save(product);
     }
 
 }

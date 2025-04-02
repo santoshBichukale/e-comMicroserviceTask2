@@ -9,13 +9,20 @@ import com.zestindiait.externalservice.ProductServiceFeignClient;
 import com.zestindiait.externalservice.UserServiceFeignClient;
 import com.zestindiait.repository.OrderRepository;
 import com.zestindiait.service.OrderService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
+
 
 @Service
 public class OrderServiceImpl implements OrderService {
+
+    @Autowired
+    private HttpServletRequest request;
 
     @Autowired
     private OrderRepository orderRepository;
@@ -26,44 +33,54 @@ public class OrderServiceImpl implements OrderService {
     @Autowired
     private ProductServiceFeignClient productServiceFeignClient;
 
-
     @Override
     public Order placeOrder(Order order) {
 
-        User user = userServiceFeignClient.getUserDetails(order.getUserId());
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            throw new OrderNotFoundException("Missing or invalid token");
+        }
+        System.err.println("Authorization Header:" + authHeader);
 
-        if (user == null) {
-            throw new OrderNotFoundException("User not found with id: " + order.getUserId());
+
+        Optional<User> user = Optional.ofNullable(userServiceFeignClient.getUserDetails(authHeader));
+        if (user.isEmpty()) {
+            throw new OrderNotFoundException("User not found");
         }
 
 
         for (ProductOrder productOrder : order.getProductOrders()) {
-            Product product = productServiceFeignClient.getProductDetails(productOrder.getProductId());
+
+            Product product = productServiceFeignClient.getProductDetails(productOrder.getProductId(), authHeader);
 
             if (product == null) {
                 throw new OrderNotFoundException("Product not found with id: " + productOrder.getProductId());
             }
-          productOrder.setProductName(product.getProductName());
 
-            double totalPrice = product.getPrice() * productOrder.getQuantity();
-
-            productOrder.setPrice(totalPrice);
+            productOrder.setProductName(product.getProductName());
+            double price = product.getPrice() * productOrder.getQuantity();
+            productOrder.setPrice(price);
 
             int newQuantity = product.getStockQuantity() - productOrder.getQuantity();
-            if(newQuantity<0){
+            if (newQuantity < 0) {
                 throw new OrderNotFoundException("Product out of stock with id: " + productOrder.getProductId());
             }
+
             product.setStockQuantity(newQuantity);
-            productServiceFeignClient.updateProduct(product);
+            productServiceFeignClient.updateStock(product, "SECRET_INTERNAL_KEY");
+
+
         }
 
-        order.setUserName(user.getUserName());
+
+        order.setUserName(user.get().getUserName());
         order.setOrderDate(new Date());
-        order.setUserId(user.getUserId());
+        order.setUserId(user.get().getUserId());
         order.setTotalAmount(calculateTotalAmount(order.getProductOrders()));
 
         return orderRepository.save(order);
     }
+
 
     @Override
     public Order getOrderById(String id) {
@@ -77,12 +94,18 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public void deleteOrder(String id) {
-        Order order=orderRepository.findById(id).orElseThrow(() -> new OrderNotFoundException("Order not found with id: " + id));
-        for(ProductOrder productOrder : order .getProductOrders()){
-            Product product = productServiceFeignClient.getProductDetails(productOrder.getProductId());
+        Order order = orderRepository.findById(id).orElseThrow(() -> new OrderNotFoundException("Order not found with id: " + id));
+        for (ProductOrder productOrder : order.getProductOrders()) {
+            String authHeader = request.getHeader("Authorization");
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                throw new OrderNotFoundException("Missing or invalid token");
+            }
+            Product product = productServiceFeignClient.getProductDetails(productOrder.getProductId(), authHeader);
             int restoredQuantity = product.getStockQuantity() + productOrder.getQuantity();
             product.setStockQuantity(restoredQuantity);
-            productServiceFeignClient.updateProduct(product);
+            productServiceFeignClient.updateStock(product, "SECRET_INTERNAL_KEY");
+
+
 
         }
         orderRepository.deleteById(id);
@@ -92,7 +115,6 @@ public class OrderServiceImpl implements OrderService {
     public List<Order> getOrderByUserId(String userId) {
         return orderRepository.findAllByUserId(userId);
     }
-
 
 
     private double calculateTotalAmount(List<ProductOrder> productOrders) {

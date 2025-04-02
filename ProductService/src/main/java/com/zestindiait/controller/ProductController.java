@@ -1,9 +1,11 @@
 package com.zestindiait.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zestindiait.entites.Product;
 
 import com.zestindiait.service.ProductService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -40,6 +42,17 @@ public class ProductController {
 
     @PutMapping
     public ResponseEntity<Product> updateProduct(@RequestBody Product product) {
-        return ResponseEntity.ok(productService.saveProduct(product));
+
+        return ResponseEntity.ok(productService.updateProduct(product));
     }
+
+    @PutMapping("/internal/update-stock")
+    public ResponseEntity<Void> updateStock(@RequestBody Product product, @RequestHeader("Internal-Auth") String internalAuth) {
+        if (!"SECRET_INTERNAL_KEY".equals(internalAuth)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        productService.updateProduct(product);
+        return ResponseEntity.ok().build();
+    }
+
 }

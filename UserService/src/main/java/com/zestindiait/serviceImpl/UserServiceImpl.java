@@ -7,10 +7,14 @@ import com.zestindiait.entities.User;
 import com.zestindiait.repository.UserRepository;
 import com.zestindiait.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -21,6 +25,8 @@ public class UserServiceImpl implements UserService {
 
   @Autowired
     private PasswordEncoder passwordEncoder;
+
+
 
 
     @Override
@@ -51,9 +57,14 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public User login(LoginDto request) {
+        Optional<User> userOptional = userRepository.findByUserName(request.getUserName());
 
-        User user = userRepository.findByUserName(request.getUserName())
-                .orElseThrow(() -> new UserNotFoundException("User not found with username: " + request.getUserName()));
+        if (userOptional.isEmpty()) {
+            throw new UserNotFoundException("User not found: " + request.getUserName());
+        }
+
+        User user = userOptional.get();
+
 
         return user;
     }
@@ -63,6 +74,23 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException("User not found with id: " + userId));
         userRepository.delete(user);
+    }
+
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        Optional<User> userOptional = userRepository.findByUserName(username);
+
+        if (userOptional.isEmpty()) {
+            throw new UserNotFoundException("User not found: " + username);
+        }
+
+        User user = userOptional.get();
+
+        return new org.springframework.security.core.userdetails.User(
+                user.getUserName(),
+                user.getUserPassword(),
+                List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()))
+        );
     }
 
 }

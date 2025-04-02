@@ -2,10 +2,11 @@ package com.zestindiait.service;
 
 import com.zestindiait.dto.LoginDto;
 import com.zestindiait.entities.User;
+import org.springframework.security.core.userdetails.UserDetailsService;
 
 import java.util.List;
 
-public interface UserService  {
+public interface UserService extends UserDetailsService {
    User saveUser(User user);
 
     List<User> getAllUser();
